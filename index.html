@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CronoEstudo</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>CronoEstudo</h1>
+  </header>
+
+  <div id="studySummary">
+    📘 Você estudou <strong id="minutesToday">0</strong> minutos hoje
+  </div>
+
+  <div id="add-task">
+    <input type="text" id="taskInput" placeholder="Nova tarefa ou matéria..." />
+    <button id="addTaskBtn">Adicionar</button>
+  </div>
+
+  <div id="taskList"></div>
+
+  <!-- Widget Pomodoro -->
+  <div id="pomodoroWidget" class="widget" style="display:none;">
+    <div class="widget-header" id="dragHandle">
+      ⏱ Pomodoro <span id="minimizeBtn">➖</span>
+    </div>
+    <div class="widget-body" id="pomodoroBody">
+      <p id="pomodoroTimer">25:00</p>
+      <p id="pomodoroStatus" style="font-weight:bold; margin-bottom: 10px;"></p>
+      <button id="pauseBtn">⏸️ Pausar</button>
+      <button id="closePomodoroBtn">Fechar</button>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
