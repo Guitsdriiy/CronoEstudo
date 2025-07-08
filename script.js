@@ -1,10 +1,125 @@
-let pomodoroInterval = null;
-let pomodoroSeconds = 1500; // 25 min
-let pomodoroRunning = false;
-let currentTask = "";
-let pomodorosCompleted = 0; // contador pomodoros completos
-let inBreak = false; // se está na pausa
-let breakSeconds = 0; // tempo da pausa atual
+// CONFIG PADRÃO
+let config = {
+  study: 25,
+  shortBreak: 5,
+  longBreak: 15,
+  cyclesUntilLongBreak: 4
+};
+
+let currentCycle = 0;
+let pomodoroInterval;
+let secondsLeft = 0;
+let isPaused = false;
+let phase = 'study';
+
+function saveConfig() {
+  config.study = parseInt(document.getElementById("pomodoroDuration").value) || 25;
+  config.shortBreak = parseInt(document.getElementById("shortBreakDuration").value) || 5;
+  config.longBreak = parseInt(document.getElementById("longBreakDuration").value) || 15;
+  config.cyclesUntilLongBreak = parseInt(document.getElementById("cyclesUntilLongBreak").value) || 4;
+  localStorage.setItem("pomodoro_config", JSON.stringify(config));
+  closeConfigModal();
+}
+
+function loadConfig() {
+  const saved = localStorage.getItem("pomodoro_config");
+  if (saved) config = JSON.parse(saved);
+  document.getElementById("pomodoroDuration").value = config.study;
+  document.getElementById("shortBreakDuration").value = config.shortBreak;
+  document.getElementById("longBreakDuration").value = config.longBreak;
+  document.getElementById("cyclesUntilLongBreak").value = config.cyclesUntilLongBreak;
+}
+
+function openConfigModal() {
+  document.getElementById("configModal").style.display = "flex";
+}
+
+function closeConfigModal() {
+  document.getElementById("configModal").style.display = "none";
+}
+
+function startPomodoro() {
+  switchPhase('study');
+  document.getElementById("pomodoroWidget").style.display = "block";
+  document.getElementById("pomodoroBody").style.display = "block";
+  document.getElementById("minimizeBtn").textContent = "➖";
+}
+
+function switchPhase(newPhase) {
+  clearInterval(pomodoroInterval);
+  isPaused = false;
+  phase = newPhase;
+
+  const status = document.getElementById("pomodoroStatus");
+  status.textContent = phase === 'study' ? 'Estudando' : phase === 'short' ? 'Pausa Curta' : 'Pausa Longa';
+  status.className = `pomodoro-status ${phase === 'study' ? 'study' : phase === 'short' ? 'short-break' : 'long-break'}`;
+
+  secondsLeft = (phase === 'study' ? config.study : phase === 'short' ? config.shortBreak : config.longBreak) * 60;
+
+  updateTimerDisplay();
+  pomodoroInterval = setInterval(() => {
+    if (!isPaused) {
+      secondsLeft--;
+      updateTimerDisplay();
+
+      if (secondsLeft <= 0) {
+        clearInterval(pomodoroInterval);
+        if (phase === 'study') {
+          currentCycle++;
+          addStudyMinutes(config.study);
+          if (currentCycle >= config.cyclesUntilLongBreak) {
+            currentCycle = 0;
+            switchPhase('long');
+          } else {
+            switchPhase('short');
+          }
+        } else {
+          switchPhase('study');
+        }
+      }
+    }
+  }, 1000);
+}
+
+function pausePomodoro() {
+  isPaused = true;
+}
+
+function resumePomodoro() {
+  isPaused = false;
+}
+
+function closePomodoro() {
+  clearInterval(pomodoroInterval);
+  document.getElementById("pomodoroWidget").style.display = "none";
+}
+
+function toggleWidget(e) {
+  e.stopPropagation();
+  const body = document.getElementById("pomodoroBody");
+  const btn = document.getElementById("minimizeBtn");
+
+  if (body.style.display === "none") {
+    body.style.display = "block";
+    btn.textContent = "➖";
+  } else {
+    body.style.display = "none";
+    btn.textContent = "🔼";
+  }
+}
+
+function updateTimerDisplay() {
+  const min = String(Math.floor(secondsLeft / 60)).padStart(2, '0');
+  const sec = String(secondsLeft % 60).padStart(2, '0');
+  document.getElementById("pomodoroTimer").textContent = `${min}:${sec}`;
+}
+
+function addStudyMinutes(min) {
+  const key = `cronoestudo_minutes_${new Date().toISOString().split("T")[0]}`;
+  const current = parseInt(localStorage.getItem(key)) || 0;
+  localStorage.setItem(key, current + min);
+  document.getElementById("minutesToday").textContent = current + min;
+}
 
 // TAREFAS
 function saveTasks() {
@@ -42,7 +157,7 @@ function createTaskCard(text, checked = false) {
 
   const pomodoroBtn = document.createElement("button");
   pomodoroBtn.innerText = "⏱️";
-  pomodoroBtn.onclick = () => startPomodoro(text);
+  pomodoroBtn.onclick = () => startPomodoro();
 
   const leftSide = document.createElement("div");
   leftSide.appendChild(checkbox);
@@ -66,166 +181,51 @@ function addTask() {
   taskInput.value = "";
 }
 
-// POMODORO + PAUSAS
-function startPomodoro(text = "") {
-  currentTask = text;
-  pomodoroSeconds = 1500;
-  pomodoroRunning = true;
-  inBreak = false;
-  updatePomodoroDisplay();
-  updatePomodoroStatus("Trabalhando...");
-  document.getElementById("pomodoroWidget").style.display = "block";
-  document.getElementById("pauseBtn").textContent = "⏸️ Pausar";
-  startPomodoroInterval();
-}
+// DRAG
+let offsetX = 0, offsetY = 0, isDragging = false;
 
-function startPomodoroInterval() {
-  if (pomodoroInterval) clearInterval(pomodoroInterval);
-  pomodoroInterval = setInterval(() => {
-    if (!pomodoroRunning) return;
-
-    if (!inBreak) {
-      pomodoroSeconds--;
-      updatePomodoroDisplay();
-
-      if (pomodoroSeconds <= 0) {
-        pomodorosCompleted++;
-        clearInterval(pomodoroInterval);
-        pomodoroInterval = null;
-        alert(`Pomodoro finalizado para: ${currentTask}`);
-        addStudyMinutes(25);
-
-        // Iniciar pausa automaticamente
-        startBreak();
-      }
-    } else {
-      breakSeconds--;
-      updatePomodoroDisplay();
-
-      if (breakSeconds <= 0) {
-        clearInterval(pomodoroInterval);
-        pomodoroInterval = null;
-        alert("Pausa finalizada! Prepare-se para o próximo Pomodoro.");
-        updatePomodoroStatus("");
-        // Depois da pausa, o Pomodoro só começa manualmente
-        pomodoroRunning = false;
-        updatePauseButton();
-      }
-    }
-  }, 1000);
-}
-
-function startBreak() {
-  inBreak = true;
-  if (pomodorosCompleted % 4 === 0) {
-    // pausa longa a cada 4 pomodoros
-    breakSeconds = 15 * 60;
-    updatePomodoroStatus("Pausa longa");
-  } else {
-    breakSeconds = 5 * 60;
-    updatePomodoroStatus("Pausa curta");
-  }
-  updatePomodoroDisplay();
-  pomodoroRunning = true;
-  document.getElementById("pauseBtn").textContent = "⏸️ Pausar";
-  startPomodoroInterval();
-}
-
-function togglePomodoroPause() {
-  pomodoroRunning = !pomodoroRunning;
-  updatePauseButton();
-}
-
-function updatePauseButton() {
-  const btn = document.getElementById("pauseBtn");
-  btn.textContent = pomodoroRunning ? "⏸️ Pausar" : "▶️ Retomar";
-}
-
-function updatePomodoroStatus(text) {
-  document.getElementById("pomodoroStatus").textContent = text;
-}
-
-function closePomodoro() {
-  clearInterval(pomodoroInterval);
-  pomodoroInterval = null;
-  pomodoroRunning = false;
-  inBreak = false;
-  pomodorosCompleted = 0;
-  updatePomodoroStatus("");
-  document.getElementById("pomodoroWidget").style.display = "none";
-}
-
-function toggleWidget() {
-  const body = document.getElementById("pomodoroBody");
-  const btn = document.getElementById("minimizeBtn");
-  if (body.style.display === "none") {
-    body.style.display = "block";
-    btn.textContent = "➖";
-  } else {
-    body.style.display = "none";
-    btn.textContent = "🔼";
-  }
-}
-
-// DRAG SUAVE
-function enableDrag() {
+function startDrag(e) {
+  e.preventDefault();
   const widget = document.getElementById("pomodoroWidget");
-  let offsetX, offsetY, isDragging = false;
 
-  widget.addEventListener("pointerdown", function(e) {
-    const rect = widget.getBoundingClientRect();
-    offsetX = e.clientX - rect.left;
-    offsetY = e.clientY - rect.top;
-    isDragging = true;
-    widget.setPointerCapture(e.pointerId);
-  });
+  const clientX = e.type.startsWith("touch") ? e.touches[0].clientX : e.clientX;
+  const clientY = e.type.startsWith("touch") ? e.touches[0].clientY : e.clientY;
 
-  widget.addEventListener("pointermove", function(e) {
+  offsetX = clientX - widget.offsetLeft;
+  offsetY = clientY - widget.offsetTop;
+  isDragging = true;
+
+  function dragMove(ev) {
     if (!isDragging) return;
-    let left = e.clientX - offsetX;
-    let top = e.clientY - offsetY;
-    widget.style.left = `${left}px`;
-    widget.style.top = `${top}px`;
-  });
+    const moveX = ev.type.startsWith("touch") ? ev.touches[0].clientX : ev.clientX;
+    const moveY = ev.type.startsWith("touch") ? ev.touches[0].clientY : ev.clientY;
+    widget.style.left = `${moveX - offsetX}px`;
+    widget.style.top = `${moveY - offsetY}px`;
+  }
 
-  widget.addEventListener("pointerup", function(e) {
+  function stopDrag() {
     isDragging = false;
-    widget.releasePointerCapture(e.pointerId);
-  });
-}
+    document.removeEventListener("mousemove", dragMove);
+    document.removeEventListener("mouseup", stopDrag);
+    document.removeEventListener("touchmove", dragMove);
+    document.removeEventListener("touchend", stopDrag);
+  }
 
-// MINUTOS
-function getTodayKey() {
-  return `cronoestudo_minutes_${new Date().toISOString().split("T")[0]}`;
-}
-
-function addStudyMinutes(min) {
-  const key = getTodayKey();
-  const current = parseInt(localStorage.getItem(key)) || 0;
-  localStorage.setItem(key, current + min);
-  updateMinutesToday();
+  document.addEventListener("mousemove", dragMove);
+  document.addEventListener("mouseup", stopDrag);
+  document.addEventListener("touchmove", dragMove, { passive: false });
+  document.addEventListener("touchend", stopDrag);
 }
 
 function updateMinutesToday() {
-  const key = getTodayKey();
+  const key = `cronoestudo_minutes_${new Date().toISOString().split("T")[0]}`;
   const current = parseInt(localStorage.getItem(key)) || 0;
   document.getElementById("minutesToday").textContent = current;
 }
 
-function updatePomodoroDisplay() {
-  const secondsToShow = inBreak ? breakSeconds : pomodoroSeconds;
-  const min = String(Math.floor(secondsToShow / 60)).padStart(2, '0');
-  const sec = String(secondsToShow % 60).padStart(2, '0');
-  document.getElementById("pomodoroTimer").textContent = `${min}:${sec}`;
-}
-
 window.onload = () => {
   loadTasks();
+  updateTimerDisplay();
   updateMinutesToday();
-  enableDrag();
-
-  document.getElementById("addTaskBtn").addEventListener("click", addTask);
-  document.getElementById("closePomodoroBtn").addEventListener("click", closePomodoro);
-  document.getElementById("minimizeBtn").addEventListener("click", toggleWidget);
-  document.getElementById("pauseBtn").addEventListener("click", togglePomodoroPause);
+  loadConfig();
 };
