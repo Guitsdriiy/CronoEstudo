@@ -1,40 +1,61 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
+<!DOCTYPE html><html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CronoEstudo</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header>
     <h1>CronoEstudo</h1>
-  </header>
-
-  <div id="studySummary">
+  </header>  <div id="studySummary">
     📘 Você estudou <strong id="minutesToday">0</strong> minutos hoje
-  </div>
-
-  <div id="add-task">
+  </div>  <div id="add-task">
     <input type="text" id="taskInput" placeholder="Nova tarefa ou matéria..." />
-    <button id="addTaskBtn">Adicionar</button>
-  </div>
-
-  <div id="taskList"></div>
-
-  <!-- Widget Pomodoro -->
-  <div id="pomodoroWidget" class="widget" style="display:none;">
-    <div class="widget-header" id="dragHandle">
-      ⏱ Pomodoro <span id="minimizeBtn">➖</span>
+    <button onclick="addTask()">Adicionar</button>
+  </div>  <div id="taskList"></div>  <button id="configBtn" onclick="openConfigModal()" title="Ajustar tempos do Pomodoro">
+    ⚙️ Configurar Pomodoro
+  </button>  <!-- Widget Pomodoro -->  <div id="pomodoroWidget" class="widget" style="display:none;">
+    <div
+      class="widget-header"
+      onmousedown="startDrag(event)"
+      ontouchstart="startDrag(event)"
+    >
+      ⏱ Pomodoro
+      <span id="minimizeBtn" onclick="toggleWidget(event)">➖</span>
     </div>
     <div class="widget-body" id="pomodoroBody">
+      <p id="pomodoroStatus" class="pomodoro-status study">Estudando</p>
       <p id="pomodoroTimer">25:00</p>
-      <p id="pomodoroStatus" style="font-weight:bold; margin-bottom: 10px;"></p>
-      <button id="pauseBtn">⏸️ Pausar</button>
-      <button id="closePomodoroBtn">Fechar</button>
+      <div class="widget-buttons">
+        <button onclick="pausePomodoro()">⏸️</button>
+        <button onclick="resumePomodoro()">▶️</button>
+        <button onclick="closePomodoro()">Fechar</button>
+      </div>
     </div>
-  </div>
-
-  <script src="script.js"></script>
-</body>
+  </div>  <!-- Modal Configurações Pomodoro -->  <div id="configModal" class="modal" style="display:none;">
+    <div class="modal-content">
+      <h2>Configurações do Pomodoro</h2>
+      <label>
+        Duração Estudo (min):
+        <input type="number" id="pomodoroDuration" min="1" />
+      </label>
+      <label>
+        Duração Pausa Curta (min):
+        <input type="number" id="shortBreakDuration" min="1" />
+      </label>
+      <label>
+        Duração Pausa Longa (min):
+        <input type="number" id="longBreakDuration" min="1" />
+      </label>
+      <label>
+        Ciclos até Pausa Longa:
+        <input type="number" id="cyclesUntilLongBreak" min="1" />
+      </label>
+      <div class="modal-buttons">
+        <button onclick="saveConfig()">Salvar</button>
+        <button onclick="closeConfigModal()">Cancelar</button>
+      </div>
+    </div>
+  </div>  <script src="script.js"></script></body>
 </html>
