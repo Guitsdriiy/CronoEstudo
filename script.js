@@ -99,13 +99,9 @@ function toggleWidget(e) {
   const body = document.getElementById("pomodoroBody");
   const btn = document.getElementById("minimizeBtn");
 
-  if (body.style.display === "none") {
-    body.style.display = "block";
-    btn.textContent = "➖";
-  } else {
-    body.style.display = "none";
-    btn.textContent = "🔼";
-  }
+  const isVisible = body.style.display !== "none";
+  body.style.display = isVisible ? "none" : "block";
+  btn.textContent = isVisible ? "🔼" : "➖";
 }
 
 function updateTimerDisplay() {
@@ -181,10 +177,14 @@ function addTask() {
   taskInput.value = "";
 }
 
-// DRAG
+// DRAG com proteção para não bloquear botões
 let offsetX = 0, offsetY = 0, isDragging = false;
 
 function startDrag(e) {
+  // Evita arrastar ao clicar em botões ou minimizador
+  const target = e.target;
+  if (target.closest("button") || target.id === "minimizeBtn") return;
+
   e.preventDefault();
   const widget = document.getElementById("pomodoroWidget");
 
@@ -216,6 +216,10 @@ function startDrag(e) {
   document.addEventListener("touchmove", dragMove, { passive: false });
   document.addEventListener("touchend", stopDrag);
 }
+
+// Ativa drag em toda a janela (com proteção)
+document.getElementById("pomodoroWidget").addEventListener("mousedown", startDrag);
+document.getElementById("pomodoroWidget").addEventListener("touchstart", startDrag);
 
 function updateMinutesToday() {
   const key = `cronoestudo_minutes_${new Date().toISOString().split("T")[0]}`;
