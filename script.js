@@ -37,7 +37,6 @@ function openConfigModal() {
 function closeConfigModal() {
   document.getElementById("configModal").style.display = "none";
 }
-
 // POMODORO
 function startPomodoro() {
   switchPhase('study');
@@ -121,7 +120,6 @@ function updateMinutesToday() {
   const current = parseInt(localStorage.getItem(key)) || 0;
   document.getElementById("minutesToday").textContent = current;
 }
-
 // MODAL DE FORMULÁRIO
 function openTaskForm(card = null, text = '') {
   document.getElementById("taskFormModal").style.display = "flex";
@@ -157,12 +155,12 @@ function submitTaskForm() {
   const details = `${name} — ${type}, ${difficulty} (${time} min)${notes ? ' • ' + notes : ''}`;
 
   if (currentEditingCard) {
-    currentEditingCard.querySelector("span").textContent = details;
+    currentEditingCard.querySelector("span.titulo").textContent = name;
+    saveTasks();
   } else {
     createTaskCard(details);
   }
 
-  saveTasks();
   closeTaskForm();
 }
 
@@ -170,9 +168,15 @@ function submitTaskForm() {
 function saveTasks() {
   const tasks = [];
   document.querySelectorAll(".task-card").forEach(card => {
-    const text = card.querySelector("span").innerText;
+    const rawText = card.querySelector("span.titulo").textContent;
+    const tipo = card.querySelector(".badge")?.textContent || "";
+    const dificuldade = card.querySelectorAll(".badge")[1]?.textContent || "";
+    const tempo = card.querySelector(".detalhes")?.textContent.match(/\d+/)?.[0] || "";
+    const notas = card.querySelector(".detalhes")?.innerHTML.includes("📝") ? card.querySelector(".detalhes").innerHTML.split("📝")[1].trim() : "";
     const checked = card.querySelector("input[type='checkbox']").checked;
-    tasks.push({ text, checked });
+
+    const full = `${rawText} — ${tipo}, ${dificuldade} (${tempo} min)${notas ? ' • ' + notas : ''}`;
+    tasks.push({ text: full, checked });
   });
   localStorage.setItem("cronoestudo_tasks", JSON.stringify(tasks));
 }
@@ -181,7 +185,6 @@ function loadTasks() {
   const saved = JSON.parse(localStorage.getItem("cronoestudo_tasks")) || [];
   saved.forEach(task => createTaskCard(task.text, task.checked));
 }
-
 function createTaskCard(text, checked = false) {
   const card = document.createElement("div");
   card.className = "task-card";
@@ -190,9 +193,38 @@ function createTaskCard(text, checked = false) {
   checkbox.type = "checkbox";
   checkbox.checked = checked;
 
-  const span = document.createElement("span");
-  span.textContent = text;
-  if (checked) span.style.textDecoration = "line-through";
+  const [nome, resto] = text.split(" — ");
+  const detalhesPartes = resto ? resto.split(", ") : [];
+  const tipo = detalhesPartes[0] || "";
+  const dificuldade = detalhesPartes[1]?.split(" ")[0] || "";
+  const tempo = detalhesPartes[1]?.split("(")[1]?.replace(")", "") || "";
+  const notas = text.includes("•") ? text.split("•")[1].trim() : "";
+
+  const titulo = document.createElement("span");
+  titulo.className = "titulo";
+  titulo.textContent = nome;
+
+  const badges = document.createElement("div");
+
+  const badgeTipo = document.createElement("span");
+  badgeTipo.className = `badge ${tipo.toLowerCase()}`;
+  badgeTipo.textContent = tipo;
+  badges.appendChild(badgeTipo);
+
+  const badgeDificuldade = document.createElement("span");
+  badgeDificuldade.className = `badge ${dificuldade.toLowerCase()}`;
+  badgeDificuldade.textContent = dificuldade;
+  badges.appendChild(badgeDificuldade);
+
+  const detalhes = document.createElement("div");
+  detalhes.className = "detalhes";
+  detalhes.innerHTML = `${tempo ? `<strong>⏱ ${tempo}</strong>` : ""} ${notas ? `<br>📝 ${notas}` : ""}`;
+
+  const textoContainer = document.createElement("div");
+  textoContainer.style.flexGrow = 1;
+  textoContainer.appendChild(titulo);
+  textoContainer.appendChild(badges);
+  textoContainer.appendChild(detalhes);
 
   const buttons = document.createElement("div");
   buttons.className = "task-buttons";
@@ -205,16 +237,17 @@ function createTaskCard(text, checked = false) {
   };
 
   checkbox.addEventListener("change", () => {
-    span.style.textDecoration = checkbox.checked ? "line-through" : "none";
     const parent = checkbox.checked ? "completedTasks" : "activeTasks";
     document.getElementById(parent).appendChild(card);
 
     buttons.innerHTML = "";
     if (!checkbox.checked) {
       buttons.appendChild(createPomodoroBtn());
-      buttons.appendChild(createEditBtn(card, span));
+      buttons.appendChild(createEditBtn(card, text));
     }
     buttons.appendChild(deleteBtn);
+
+    titulo.style.textDecoration = checkbox.checked ? "line-through" : "none";
     saveTasks();
   });
 
@@ -225,22 +258,21 @@ function createTaskCard(text, checked = false) {
     return btn;
   }
 
-  function createEditBtn(cardEl, spanEl) {
+  function createEditBtn(cardEl, rawText) {
     const btn = document.createElement("button");
     btn.innerHTML = "✏️";
-    btn.onclick = () => openTaskForm(cardEl, spanEl.textContent);
+    btn.onclick = () => openTaskForm(cardEl, rawText);
     return btn;
   }
 
   card.appendChild(checkbox);
-  card.appendChild(span);
+  card.appendChild(textoContainer);
 
   if (!checked) {
     buttons.appendChild(createPomodoroBtn());
-    buttons.appendChild(createEditBtn(card, span));
+    buttons.appendChild(createEditBtn(card, text));
   }
   buttons.appendChild(deleteBtn);
-
   card.appendChild(buttons);
 
   const parent = checked ? "completedTasks" : "activeTasks";
