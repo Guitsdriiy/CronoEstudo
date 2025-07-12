@@ -37,6 +37,7 @@ function openConfigModal() {
 function closeConfigModal() {
   document.getElementById("configModal").style.display = "none";
 }
+
 // POMODORO
 function startPomodoro() {
   switchPhase('study');
@@ -44,7 +45,6 @@ function startPomodoro() {
   document.getElementById("pomodoroBody").style.display = "block";
   document.getElementById("minimizeBtn").textContent = "➖";
 }
-
 function switchPhase(newPhase) {
   clearInterval(pomodoroInterval);
   isPaused = false;
@@ -127,14 +127,21 @@ function openTaskForm(card = null, text = '') {
 
   const nameInput = document.getElementById("formName");
   const notes = document.getElementById("formNotes");
+  const timeInput = document.getElementById("formTime");
 
   if (card) {
     const parts = text.split(' — ');
     nameInput.value = parts[0] || '';
-    notes.value = text.includes('•') ? text.split('•')[1].trim() : '';
+    const content = parts[1] || '';
+    const note = text.includes('•') ? text.split('•')[1].trim() : '';
+    notes.value = note;
+
+    const timeMatch = content.match(/\((\d+)\s*min\)/);
+    timeInput.value = timeMatch ? timeMatch[1] : '';
   } else {
     nameInput.value = '';
     notes.value = '';
+    timeInput.value = '';
   }
 }
 
@@ -152,31 +159,27 @@ function submitTaskForm() {
 
   if (name === "") return alert("Digite o nome da matéria.");
 
-  const details = `${name} — ${type}, ${difficulty} (${time} min)${notes ? ' • ' + notes : ''}`;
+  const badges = `
+    <span class="badge-tipo">${type}</span>
+    <span class="badge-${difficulty.toLowerCase()}">${difficulty}</span>
+    <span class="badge-tempo">${time} min</span>${notes ? ' • ' + notes : ''}
+  `;
 
   if (currentEditingCard) {
-    currentEditingCard.querySelector("span.titulo").textContent = name;
-    saveTasks();
+    currentEditingCard.querySelector("span").innerHTML = `<strong>${name}</strong><br>${badges}`;
   } else {
-    createTaskCard(details);
+    createTaskCard(`<strong>${name}</strong><br>${badges}`);
   }
 
+  saveTasks();
   closeTaskForm();
 }
-
-// TAREFAS
 function saveTasks() {
   const tasks = [];
   document.querySelectorAll(".task-card").forEach(card => {
-    const rawText = card.querySelector("span.titulo").textContent;
-    const tipo = card.querySelector(".badge")?.textContent || "";
-    const dificuldade = card.querySelectorAll(".badge")[1]?.textContent || "";
-    const tempo = card.querySelector(".detalhes")?.textContent.match(/\d+/)?.[0] || "";
-    const notas = card.querySelector(".detalhes")?.innerHTML.includes("📝") ? card.querySelector(".detalhes").innerHTML.split("📝")[1].trim() : "";
+    const text = card.querySelector("span").innerHTML;
     const checked = card.querySelector("input[type='checkbox']").checked;
-
-    const full = `${rawText} — ${tipo}, ${dificuldade} (${tempo} min)${notas ? ' • ' + notas : ''}`;
-    tasks.push({ text: full, checked });
+    tasks.push({ text, checked });
   });
   localStorage.setItem("cronoestudo_tasks", JSON.stringify(tasks));
 }
@@ -185,7 +188,8 @@ function loadTasks() {
   const saved = JSON.parse(localStorage.getItem("cronoestudo_tasks")) || [];
   saved.forEach(task => createTaskCard(task.text, task.checked));
 }
-function createTaskCard(text, checked = false) {
+
+function createTaskCard(html, checked = false) {
   const card = document.createElement("div");
   card.className = "task-card";
 
@@ -193,38 +197,9 @@ function createTaskCard(text, checked = false) {
   checkbox.type = "checkbox";
   checkbox.checked = checked;
 
-  const [nome, resto] = text.split(" — ");
-  const detalhesPartes = resto ? resto.split(", ") : [];
-  const tipo = detalhesPartes[0] || "";
-  const dificuldade = detalhesPartes[1]?.split(" ")[0] || "";
-  const tempo = detalhesPartes[1]?.split("(")[1]?.replace(")", "") || "";
-  const notas = text.includes("•") ? text.split("•")[1].trim() : "";
-
-  const titulo = document.createElement("span");
-  titulo.className = "titulo";
-  titulo.textContent = nome;
-
-  const badges = document.createElement("div");
-
-  const badgeTipo = document.createElement("span");
-  badgeTipo.className = `badge ${tipo.toLowerCase()}`;
-  badgeTipo.textContent = tipo;
-  badges.appendChild(badgeTipo);
-
-  const badgeDificuldade = document.createElement("span");
-  badgeDificuldade.className = `badge ${dificuldade.toLowerCase()}`;
-  badgeDificuldade.textContent = dificuldade;
-  badges.appendChild(badgeDificuldade);
-
-  const detalhes = document.createElement("div");
-  detalhes.className = "detalhes";
-  detalhes.innerHTML = `${tempo ? `<strong>⏱ ${tempo}</strong>` : ""} ${notas ? `<br>📝 ${notas}` : ""}`;
-
-  const textoContainer = document.createElement("div");
-  textoContainer.style.flexGrow = 1;
-  textoContainer.appendChild(titulo);
-  textoContainer.appendChild(badges);
-  textoContainer.appendChild(detalhes);
+  const span = document.createElement("span");
+  span.innerHTML = html;
+  if (checked) span.style.textDecoration = "line-through";
 
   const buttons = document.createElement("div");
   buttons.className = "task-buttons";
@@ -237,17 +212,16 @@ function createTaskCard(text, checked = false) {
   };
 
   checkbox.addEventListener("change", () => {
+    span.style.textDecoration = checkbox.checked ? "line-through" : "none";
     const parent = checkbox.checked ? "completedTasks" : "activeTasks";
     document.getElementById(parent).appendChild(card);
 
     buttons.innerHTML = "";
     if (!checkbox.checked) {
       buttons.appendChild(createPomodoroBtn());
-      buttons.appendChild(createEditBtn(card, text));
+      buttons.appendChild(createEditBtn(card, span));
     }
     buttons.appendChild(deleteBtn);
-
-    titulo.style.textDecoration = checkbox.checked ? "line-through" : "none";
     saveTasks();
   });
 
@@ -258,19 +232,19 @@ function createTaskCard(text, checked = false) {
     return btn;
   }
 
-  function createEditBtn(cardEl, rawText) {
+  function createEditBtn(cardEl, spanEl) {
     const btn = document.createElement("button");
     btn.innerHTML = "✏️";
-    btn.onclick = () => openTaskForm(cardEl, rawText);
+    btn.onclick = () => openTaskForm(cardEl, spanEl.textContent);
     return btn;
   }
 
   card.appendChild(checkbox);
-  card.appendChild(textoContainer);
+  card.appendChild(span);
 
   if (!checked) {
     buttons.appendChild(createPomodoroBtn());
-    buttons.appendChild(createEditBtn(card, text));
+    buttons.appendChild(createEditBtn(card, span));
   }
   buttons.appendChild(deleteBtn);
   card.appendChild(buttons);
