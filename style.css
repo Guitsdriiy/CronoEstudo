@@ -27,6 +27,12 @@ h1 {
   margin-bottom: 8px;
 }
 
+.subtitle {
+  font-size: 1.1em;
+  color: #bdc3c7;
+  margin-top: -8px;
+}
+
 #studySummary {
   text-align: center;
   margin-bottom: 20px;
@@ -35,11 +41,6 @@ h1 {
 
 button, input, select, textarea {
   font-family: inherit;
-  transition: background-color 0.3s ease, transform 0.2s ease;
-}
-
-button:hover {
-  transform: scale(1.02);
 }
 
 #add-task {
@@ -84,12 +85,6 @@ button:hover {
   gap: 10px;
   margin-bottom: 10px;
   flex-wrap: wrap;
-  transition: all 0.2s ease;
-}
-
-.task-card:hover {
-  border: 1px solid var(--accent);
-  transform: scale(1.01);
 }
 
 .task-card input[type="checkbox"] {
@@ -119,51 +114,40 @@ button:hover {
   color: #ffffff;
 }
 
-.badge-tipo {
-  background-color: #3498db;
-  color: white;
+/* BADGES */
+.badge {
+  display: inline-block;
   padding: 4px 10px;
   border-radius: 12px;
   font-size: 0.85em;
+  font-weight: bold;
   margin-right: 6px;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+
+.badge-tipo {
+  background-color: #3498db;
+  color: white;
 }
 
 .badge-baixa {
   background-color: #2ecc71;
   color: white;
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-size: 0.85em;
-  margin-right: 6px;
 }
 
 .badge-media {
   background-color: #f1c40f;
   color: black;
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-size: 0.85em;
-  margin-right: 6px;
 }
 
 .badge-alta {
   background-color: #e74c3c;
   color: white;
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-size: 0.85em;
-  margin-right: 6px;
 }
 
 .badge-tempo {
   background-color: #7f8c8d;
   color: white;
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-size: 0.85em;
-  white-space: nowrap;
 }
 
 /* Botão fixo */
