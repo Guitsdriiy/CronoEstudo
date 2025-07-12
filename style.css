@@ -35,6 +35,11 @@ h1 {
 
 button, input, select, textarea {
   font-family: inherit;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+button:hover {
+  transform: scale(1.02);
 }
 
 #add-task {
@@ -79,6 +84,12 @@ button, input, select, textarea {
   gap: 10px;
   margin-bottom: 10px;
   flex-wrap: wrap;
+  transition: all 0.2s ease;
+}
+
+.task-card:hover {
+  border: 1px solid var(--accent);
+  transform: scale(1.01);
 }
 
 .task-card input[type="checkbox"] {
@@ -109,16 +120,18 @@ button, input, select, textarea {
 }
 
 .badge-tipo {
-  background-color: #3498db; /* Azul */
+  background-color: #3498db;
   color: white;
   padding: 4px 10px;
   border-radius: 12px;
   font-size: 0.85em;
   margin-right: 6px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .badge-baixa {
-  background-color: #2ecc71; /* Verde */
+  background-color: #2ecc71;
   color: white;
   padding: 4px 10px;
   border-radius: 12px;
@@ -127,7 +140,7 @@ button, input, select, textarea {
 }
 
 .badge-media {
-  background-color: #f1c40f; /* Amarelo */
+  background-color: #f1c40f;
   color: black;
   padding: 4px 10px;
   border-radius: 12px;
@@ -136,7 +149,7 @@ button, input, select, textarea {
 }
 
 .badge-alta {
-  background-color: #e74c3c; /* Vermelho */
+  background-color: #e74c3c;
   color: white;
   padding: 4px 10px;
   border-radius: 12px;
@@ -145,11 +158,12 @@ button, input, select, textarea {
 }
 
 .badge-tempo {
-  background-color: #7f8c8d; /* Cinza */
+  background-color: #7f8c8d;
   color: white;
   padding: 4px 10px;
   border-radius: 12px;
   font-size: 0.85em;
+  white-space: nowrap;
 }
 
 /* Botão fixo */
