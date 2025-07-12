@@ -27,12 +27,6 @@ h1 {
   margin-bottom: 8px;
 }
 
-.subtitle {
-  font-size: 1.1em;
-  color: #bdc3c7;
-  margin-top: -8px;
-}
-
 #studySummary {
   text-align: center;
   margin-bottom: 20px;
@@ -114,43 +108,50 @@ button, input, select, textarea {
   color: #ffffff;
 }
 
-/* BADGES */
-.badge {
-  display: inline-block;
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-size: 0.85em;
-  font-weight: bold;
-  margin-right: 6px;
-  margin-bottom: 4px;
-}
-
 .badge-tipo {
   background-color: #3498db;
   color: white;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.85em;
+  margin-right: 6px;
 }
 
 .badge-baixa {
   background-color: #2ecc71;
   color: white;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.85em;
+  margin-right: 6px;
 }
 
 .badge-media {
   background-color: #f1c40f;
   color: black;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.85em;
+  margin-right: 6px;
 }
 
 .badge-alta {
   background-color: #e74c3c;
   color: white;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.85em;
+  margin-right: 6px;
 }
 
 .badge-tempo {
   background-color: #7f8c8d;
   color: white;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.85em;
 }
 
-/* Botão fixo */
 #configBtn {
   position: fixed;
   bottom: 20px;
@@ -232,7 +233,8 @@ button, input, select, textarea {
 }
 
 .modal-content {
-  background: white;
+  background: var(--card-bg);
+  color: var(--text-color);
   border-radius: var(--radius);
   padding: 20px 30px;
   max-width: 340px;
@@ -261,6 +263,8 @@ button, input, select, textarea {
   border: 1px solid #ccc;
   font-size: 1em;
   margin-top: 4px;
+  background-color: var(--card-bg);
+  color: var(--text-color);
 }
 
 .modal-content textarea {
