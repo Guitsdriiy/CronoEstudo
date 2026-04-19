@@ -1,302 +1,659 @@
-let config = {
-  study: 25,
-  shortBreak: 5,
-  longBreak: 15,
-  cyclesUntilLongBreak: 4
+'use strict';
+
+/* ═══════════════════════════════════
+   STATE
+═══════════════════════════════════ */
+const S = {
+  subjects: ls('cs3_subjects', []),
+  notes:    ls('cs3_notes', []),
+  cfg:      ls('cs3_cfg', { focus:25, short:5, long:15, cycles:4 }),
+  today: {
+    min:  lsi('cs3_tmin', 0),
+    pomo: lsi('cs3_tpomo', 0),
+  },
+  streak: lsi('cs3_streak', 1),
+  // timer
+  activeId: null,
+  running: false,
+  phase: 'focus',
+  secs: 0,
+  totalSecs: 0,
+  pomoDone: 0,
+  sessMins: 0,
+  tick: null,
+  // notes
+  activeNoteId: null,
+  // nav
+  currentView: 'dash',
 };
 
-let currentCycle = 0;
-let pomodoroInterval;
-let secondsLeft = 0;
-let isPaused = false;
-let phase = 'study';
-let currentEditingCard = null;
+const CIRC = 2 * Math.PI * 88; // ≈ 553
 
-// CONFIGURAÇÕES POMODORO
-function saveConfig() {
-  config.study = parseInt(document.getElementById("pomodoroDuration").value) || 25;
-  config.shortBreak = parseInt(document.getElementById("shortBreakDuration").value) || 5;
-  config.longBreak = parseInt(document.getElementById("longBreakDuration").value) || 15;
-  config.cyclesUntilLongBreak = parseInt(document.getElementById("cyclesUntilLongBreak").value) || 4;
-  localStorage.setItem("pomodoro_config", JSON.stringify(config));
-  closeConfigModal();
+/* ═══════════════════════════════════
+   HELPERS
+═══════════════════════════════════ */
+function ls(k, def) {
+  try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; }
+  catch { return def; }
+}
+function lsi(k, def) {
+  const v = parseInt(localStorage.getItem(k));
+  return isNaN(v) ? def : v;
+}
+function save() {
+  localStorage.setItem('cs3_subjects', JSON.stringify(S.subjects));
+  localStorage.setItem('cs3_notes',    JSON.stringify(S.notes));
+  localStorage.setItem('cs3_cfg',      JSON.stringify(S.cfg));
+  localStorage.setItem('cs3_tmin',     S.today.min);
+  localStorage.setItem('cs3_tpomo',    S.today.pomo);
+  localStorage.setItem('cs3_streak',   S.streak);
+}
+const $ = id => document.getElementById(id);
+
+const TYPE_CFG = {
+  leitura:   { l: '📖 Leitura',   cls: 't-leitura',   ico: '📖' },
+  revisao:   { l: '🔁 Revisão',   cls: 't-revisao',   ico: '🔁' },
+  exercicio: { l: '✏️ Exercício', cls: 't-exercicio', ico: '✏️' },
+  projeto:   { l: '🚀 Projeto',   cls: 't-projeto',   ico: '🚀' },
+};
+const DIFF_CFG = {
+  baixa: { l: 'Baixa', cls: 'd-baixa', c: 'var(--green)' },
+  media: { l: 'Média', cls: 'd-media', c: 'var(--orange)' },
+  alta:  { l: 'Alta',  cls: 'd-alta',  c: 'var(--red)' },
+};
+
+let toastTimer;
+function toast(ico, msg) {
+  clearTimeout(toastTimer);
+  $('t-ico').textContent = ico;
+  $('t-msg').textContent = msg;
+  const t = $('toast');
+  t.classList.add('show');
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
 }
 
-function loadConfig() {
-  const saved = localStorage.getItem("pomodoro_config");
-  if (saved) config = JSON.parse(saved);
-  document.getElementById("pomodoroDuration").value = config.study;
-  document.getElementById("shortBreakDuration").value = config.shortBreak;
-  document.getElementById("longBreakDuration").value = config.longBreak;
-  document.getElementById("cyclesUntilLongBreak").value = config.cyclesUntilLongBreak;
+/* ═══════════════════════════════════
+   NAVIGATION
+═══════════════════════════════════ */
+function nav(v) {
+  document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.nav-btn[id^="nb-"]').forEach(b => b.classList.remove('active'));
+  const viewEl = $(`view-${v}`);
+  const btnEl  = $(`nb-${v}`);
+  if (viewEl) viewEl.classList.add('active');
+  if (btnEl)  btnEl.classList.add('active');
+  S.currentView = v;
+  if (v === 'pomo')  renderPomoView();
+  if (v === 'notes') renderNotesList();
 }
 
-function openConfigModal() {
-  document.getElementById("configModal").style.display = "flex";
-}
-function closeConfigModal() {
-  document.getElementById("configModal").style.display = "none";
-}
+/* ═══════════════════════════════════
+   RENDER DASHBOARD
+═══════════════════════════════════ */
+function renderDash() {
+  const active = S.subjects.filter(s => !s.done);
+  const done   = S.subjects.filter(s => s.done);
+  const list   = $('subj-list');
+  const doneS  = $('done-section');
+  const doneL  = $('done-list');
 
-// POMODORO
-function startPomodoro() {
-  switchPhase('study');
-  document.getElementById("pomodoroWidget").style.display = "block";
-  document.getElementById("pomodoroBody").style.display = "block";
-  document.getElementById("minimizeBtn").textContent = "➖";
-}
-function switchPhase(newPhase) {
-  clearInterval(pomodoroInterval);
-  isPaused = false;
-  phase = newPhase;
+  list.innerHTML = active.length === 0
+    ? `<div class="empty-state">
+        <div class="empty-ico">📚</div>
+        <div class="empty-t">Sem matérias ainda</div>
+        <div class="empty-d">Adicione sua primeira matéria<br>e inicie uma sessão de foco.</div>
+        <button class="empty-btn" onclick="openAdd()">＋ Adicionar matéria</button>
+       </div>`
+    : active.map(s => subjCard(s, false)).join('');
 
-  const status = document.getElementById("pomodoroStatus");
-  status.textContent = phase === 'study' ? 'Estudando' : phase === 'short' ? 'Pausa Curta' : 'Pausa Longa';
-  status.className = `pomodoro-status ${phase === 'study' ? 'study' : phase === 'short' ? 'short-break' : 'long-break'}`;
-
-  secondsLeft = (phase === 'study' ? config.study : phase === 'short' ? config.shortBreak : config.longBreak) * 60;
-  updateTimerDisplay();
-
-  pomodoroInterval = setInterval(() => {
-    if (!isPaused) {
-      secondsLeft--;
-      updateTimerDisplay();
-      if (secondsLeft <= 0) {
-        clearInterval(pomodoroInterval);
-        if (phase === 'study') {
-          currentCycle++;
-          addStudyMinutes(config.study);
-          if (currentCycle >= config.cyclesUntilLongBreak) {
-            currentCycle = 0;
-            switchPhase('long');
-          } else {
-            switchPhase('short');
-          }
-        } else {
-          switchPhase('study');
-        }
-      }
-    }
-  }, 1000);
-}
-
-function pausePomodoro() {
-  isPaused = true;
-}
-
-function resumePomodoro() {
-  isPaused = false;
-}
-
-function closePomodoro() {
-  clearInterval(pomodoroInterval);
-  document.getElementById("pomodoroWidget").style.display = "none";
-}
-
-function toggleWidget(e) {
-  e.stopPropagation();
-  const body = document.getElementById("pomodoroBody");
-  const btn = document.getElementById("minimizeBtn");
-  const isVisible = body.style.display !== "none";
-  body.style.display = isVisible ? "none" : "block";
-  btn.textContent = isVisible ? "🔼" : "➖";
-}
-
-function updateTimerDisplay() {
-  const min = String(Math.floor(secondsLeft / 60)).padStart(2, '0');
-  const sec = String(secondsLeft % 60).padStart(2, '0');
-  document.getElementById("pomodoroTimer").textContent = `${min}:${sec}`;
-}
-
-function addStudyMinutes(min) {
-  const key = `cronoestudo_minutes_${new Date().toISOString().split("T")[0]}`;
-  const current = parseInt(localStorage.getItem(key)) || 0;
-  localStorage.setItem(key, current + min);
-  document.getElementById("minutesToday").textContent = current + min;
-}
-
-function updateMinutesToday() {
-  const key = `cronoestudo_minutes_${new Date().toISOString().split("T")[0]}`;
-  const current = parseInt(localStorage.getItem(key)) || 0;
-  document.getElementById("minutesToday").textContent = current;
-}
-// MODAL DE FORMULÁRIO
-function openTaskForm(card = null, text = '') {
-  document.getElementById("taskFormModal").style.display = "flex";
-  currentEditingCard = card;
-
-  const nameInput = document.getElementById("formName");
-  const notes = document.getElementById("formNotes");
-  const timeInput = document.getElementById("formTime");
-
-  if (card) {
-    const parts = text.split(' — ');
-    nameInput.value = parts[0] || '';
-    const content = parts[1] || '';
-    const note = text.includes('•') ? text.split('•')[1].trim() : '';
-    notes.value = note;
-
-    const timeMatch = content.match(/\((\d+)\s*min\)/);
-    timeInput.value = timeMatch ? timeMatch[1] : '';
+  if (done.length) {
+    doneS.style.display = 'block';
+    doneL.innerHTML = done.map(s => subjCard(s, true)).join('');
   } else {
-    nameInput.value = '';
-    notes.value = '';
-    timeInput.value = '';
-  }
-}
-
-function closeTaskForm() {
-  document.getElementById("taskFormModal").style.display = "none";
-  currentEditingCard = null;
-}
-
-function submitTaskForm() {
-  const name = document.getElementById("formName").value.trim();
-  const type = document.getElementById("formType").value;
-  const difficulty = document.getElementById("formDifficulty").value;
-  const time = document.getElementById("formTime").value;
-  const notes = document.getElementById("formNotes").value;
-
-  if (name === "") return alert("Digite o nome da matéria.");
-
-  const badges = `
-    <span class="badge-tipo">${type}</span>
-    <span class="badge-${difficulty.toLowerCase()}">${difficulty}</span>
-    <span class="badge-tempo">${time} min</span>${notes ? ' • ' + notes : ''}
-  `;
-
-  if (currentEditingCard) {
-    currentEditingCard.querySelector("span").innerHTML = `<strong>${name}</strong><br>${badges}`;
-  } else {
-    createTaskCard(`<strong>${name}</strong><br>${badges}`);
+    doneS.style.display = 'none';
   }
 
-  saveTasks();
-  closeTaskForm();
+  bindSubjCards();
+  updateStats();
 }
-function saveTasks() {
-  const tasks = [];
-  document.querySelectorAll(".task-card").forEach(card => {
-    const text = card.querySelector("span").innerHTML;
-    const checked = card.querySelector("input[type='checkbox']").checked;
-    tasks.push({ text, checked });
+
+function subjCard(s, isDone) {
+  const t   = TYPE_CFG[s.type] || TYPE_CFG.leitura;
+  const d   = DIFF_CFG[s.diff] || DIFF_CFG.baixa;
+  const isRun = S.activeId === s.id;
+  const pct = s.estTime
+    ? Math.min(100, Math.round((s.studiedMin / s.estTime) * 100))
+    : 0;
+
+  return `
+  <div class="subj-card ${isRun ? 'running' : ''} ${isDone ? 'completed' : ''}" data-id="${s.id}">
+    <div class="subj-icon ${t.cls}">${t.ico}</div>
+    <div class="subj-body">
+      <div class="subj-name">${s.name}</div>
+      <div class="subj-meta">
+        <span class="tag ${d.cls}">${d.l}</span>
+        <span style="font-size:11px;color:var(--muted)">${s.studiedMin || 0}${s.estTime ? '/' + s.estTime : ''}min</span>
+        ${s.estTime
+          ? `<div class="subj-prog-wrap"><div class="subj-prog"><div class="subj-prog-fill" style="width:${pct}%;background:${d.c}"></div></div></div>`
+          : ''}
+      </div>
+    </div>
+    <div class="subj-btns">
+      ${!isDone ? `<button class="sbn sbn-play"  data-a="play"  data-id="${s.id}" title="Estudar">▶</button>` : ''}
+      ${!isDone ? `<button class="sbn sbn-check" data-a="check" data-id="${s.id}" title="Concluir">✓</button>` : ''}
+      <button class="sbn sbn-note" data-a="note" data-id="${s.id}" title="Nota">📝</button>
+      <button class="sbn sbn-del"  data-a="del"  data-id="${s.id}" title="Remover">✕</button>
+    </div>
+  </div>`;
+}
+
+function bindSubjCards() {
+  document.querySelectorAll('[data-a]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      const a  = btn.dataset.a;
+      if (a === 'play')  startSession(id);
+      if (a === 'check') completeSubj(id);
+      if (a === 'del')   deleteSubj(id);
+      if (a === 'note')  openNoteForSubject(id);
+    });
   });
-  localStorage.setItem("cronoestudo_tasks", JSON.stringify(tasks));
+  document.querySelectorAll('.subj-card').forEach(c => {
+    c.addEventListener('click', () => startSession(c.dataset.id));
+  });
 }
 
-function loadTasks() {
-  const saved = JSON.parse(localStorage.getItem("cronoestudo_tasks")) || [];
-  saved.forEach(task => createTaskCard(task.text, task.checked));
+function updateStats() {
+  $('d-min').textContent  = S.today.min;
+  $('d-pomo').textContent = S.today.pomo;
+  $('d-done').textContent = S.subjects.filter(s => s.done).length;
+  const pct = Math.min(100, Math.round((S.today.min / 120) * 100));
+  $('d-prog').style.width = pct + '%';
+  $('d-pct').textContent  = pct + '%';
 }
 
-function createTaskCard(html, checked = false) {
-  const card = document.createElement("div");
-  card.className = "task-card";
+/* ═══════════════════════════════════
+   SUBJECT CRUD
+═══════════════════════════════════ */
+let _type = 'leitura', _diff = 'baixa';
 
-  const checkbox = document.createElement("input");
-  checkbox.type = "checkbox";
-  checkbox.checked = checked;
+function openAdd() {
+  $('f-name').value     = '';
+  $('f-time').value     = '';
+  $('f-sessions').value = '';
+  $('f-notes').value    = '';
+  _type = 'leitura'; _diff = 'baixa';
+  setChips('type-chips', _type);
+  setChips('diff-chips', _diff);
+  $('opt-f').classList.remove('show');
+  $('opt-tgl').textContent = '▸ Opções avançadas';
+  openModal('add-modal');
+  setTimeout(() => $('f-name').focus(), 350);
+}
 
-  const span = document.createElement("span");
-  span.innerHTML = html;
-  if (checked) span.style.textDecoration = "line-through";
+function setChips(id, val) {
+  document.querySelectorAll(`#${id} .chip`).forEach(c =>
+    c.classList.toggle('on', c.dataset.v === val)
+  );
+}
 
-  const buttons = document.createElement("div");
-  buttons.className = "task-buttons";
+document.querySelectorAll('#type-chips .chip').forEach(c =>
+  c.addEventListener('click', () => { _type = c.dataset.v; setChips('type-chips', _type); })
+);
+document.querySelectorAll('#diff-chips .chip').forEach(c =>
+  c.addEventListener('click', () => { _diff = c.dataset.v; setChips('diff-chips', _diff); })
+);
 
-  const deleteBtn = document.createElement("button");
-  deleteBtn.innerHTML = "🗑️";
-  deleteBtn.onclick = () => {
-    card.remove();
-    saveTasks();
+$('opt-tgl').addEventListener('click', () => {
+  const f = $('opt-f');
+  f.classList.toggle('show');
+  $('opt-tgl').textContent = f.classList.contains('show')
+    ? '▾ Opções avançadas'
+    : '▸ Opções avançadas';
+});
+
+$('btn-add').addEventListener('click', openAdd);
+
+$('add-cancel').addEventListener('click', () => closeModal('add-modal'));
+$('add-modal').addEventListener('click', e => {
+  if (e.target === $('add-modal')) closeModal('add-modal');
+});
+
+$('add-ok').addEventListener('click', () => {
+  const name = $('f-name').value.trim();
+  if (!name) {
+    $('f-name').style.borderColor = 'var(--red)';
+    $('f-name').focus();
+    return;
+  }
+  $('f-name').style.borderColor = '';
+
+  const s = {
+    id:         Date.now().toString(),
+    name,
+    type:       _type,
+    diff:       _diff,
+    estTime:    parseInt($('f-time').value)     || 0,
+    goalSess:   parseInt($('f-sessions').value) || 0,
+    notes:      $('f-notes').value,
+    studiedMin: 0,
+    sessions:   0,
+    done:       false,
+    noteId:     null,
   };
 
-  checkbox.addEventListener("change", () => {
-    span.style.textDecoration = checkbox.checked ? "line-through" : "none";
-    const parent = checkbox.checked ? "completedTasks" : "activeTasks";
-    document.getElementById(parent).appendChild(card);
+  S.subjects.unshift(s);
 
-    buttons.innerHTML = "";
-    if (!checkbox.checked) {
-      buttons.appendChild(createPomodoroBtn());
-      buttons.appendChild(createEditBtn(card, span));
-    }
-    buttons.appendChild(deleteBtn);
-    saveTasks();
+  if (s.notes) {
+    const note = createNote(s.name, s.notes);
+    s.noteId = note.id;
+  }
+
+  save();
+  renderDash();
+  closeModal('add-modal');
+  toast('✓', `"${s.name}" adicionada!`);
+});
+
+$('f-name').addEventListener('keydown', e => {
+  if (e.key === 'Enter') $('add-ok').click();
+});
+
+function completeSubj(id) {
+  const s = S.subjects.find(x => x.id === id);
+  if (!s) return;
+  s.done = !s.done;
+  if (s.done && S.activeId === id) stopTimer();
+  save();
+  renderDash();
+  toast(s.done ? '✅' : '↩️', s.done ? `"${s.name}" concluída!` : `"${s.name}" reativada`);
+}
+
+function deleteSubj(id) {
+  if (S.activeId === id) stopTimer();
+  S.subjects = S.subjects.filter(x => x.id !== id);
+  save();
+  renderDash();
+  toast('🗑', 'Matéria removida');
+}
+
+/* ═══════════════════════════════════
+   TIMER
+═══════════════════════════════════ */
+function startSession(id) {
+  if (S.running) pauseTimer();
+  const already = S.activeId === id;
+  S.activeId = id;
+  if (!already) {
+    S.pomoDone = 0;
+    S.sessMins = 0;
+    S.phase    = 'focus';
+    loadPhase();
+  }
+  renderDash();
+  renderPomoView();
+  updateBar();
+  startTimer();
+  nav('pomo');
+}
+
+function loadPhase() {
+  const d = {
+    focus: S.cfg.focus * 60,
+    short: S.cfg.short * 60,
+    long:  S.cfg.long  * 60,
+  };
+  S.totalSecs = d[S.phase];
+  S.secs      = S.totalSecs;
+  updateTimerUI();
+  updateRing();
+  renderDots();
+}
+
+function startTimer() {
+  S.running = true;
+  clearInterval(S.tick);
+  S.tick = setInterval(doTick, 1000);
+  setPlayBtn(true);
+  $('ring-wrap') && $('ring-wrap').classList.add('running');
+  $('pomo-dot').classList.add('show');
+}
+
+function pauseTimer() {
+  S.running = false;
+  clearInterval(S.tick);
+  setPlayBtn(false);
+  $('ring-wrap') && $('ring-wrap').classList.remove('running');
+}
+
+function stopTimer() {
+  pauseTimer();
+  S.activeId = null;
+  S.phase    = 'focus';
+  S.pomoDone = 0;
+  S.sessMins = 0;
+  $('pomo-dot').classList.remove('show');
+  $('pomo-bar').classList.remove('visible');
+  save();
+  renderDash();
+  renderPomoView();
+}
+
+function doTick() {
+  if (S.secs <= 0) { phaseEnd(); return; }
+  S.secs--;
+
+  if (S.phase === 'focus' && S.secs % 60 === 59) {
+    const s = S.subjects.find(x => x.id === S.activeId);
+    if (s) s.studiedMin = (s.studiedMin || 0) + 1;
+    S.today.min++;
+    S.sessMins++;
+    save();
+    updateStats();
+    if (S.currentView === 'dash') renderDash();
+  }
+
+  updateTimerUI();
+  updateRing();
+  updateBar();
+}
+
+function phaseEnd() {
+  clearInterval(S.tick);
+  S.running = false;
+  $('ring-wrap') && $('ring-wrap').classList.remove('running');
+  setPlayBtn(false);
+
+  if (S.phase === 'focus') {
+    S.pomoDone++;
+    S.today.pomo++;
+    S.sessMins++;
+    save();
+    updateStats();
+
+    const isLong = S.pomoDone % S.cfg.cycles === 0;
+    $('end-min').textContent    = S.sessMins;
+    $('end-pomo').textContent   = S.pomoDone;
+    $('end-streak').textContent = S.streak;
+    $('end-sub').textContent    = isLong
+      ? `${S.cfg.cycles} pomodoros concluídos! Pausa longa de ${S.cfg.long} min.`
+      : `Ótimo foco! Pausa curta de ${S.cfg.short} min.`;
+    $('end-emoji').textContent  = isLong ? '🏆' : '🎯';
+    S.phase = isLong ? 'long' : 'short';
+    openModal('end-modal');
+  } else {
+    S.phase = 'focus';
+    loadPhase();
+    toast('☕', 'Pausa encerrada! Vamos focar.');
+  }
+
+  renderDash();
+  renderPomoView();
+  updateBar();
+}
+
+function updateTimerUI() {
+  const mm  = String(Math.floor(S.secs / 60)).padStart(2, '0');
+  const ss  = String(S.secs % 60).padStart(2, '0');
+  const t   = `${mm}:${ss}`;
+  const ph  = S.phase === 'focus' ? 'foco'
+            : S.phase === 'short' ? 'pausa curta'
+            : 'pausa longa';
+
+  if ($('ring-time'))  $('ring-time').textContent  = t;
+  if ($('ring-phase')) $('ring-phase').textContent = ph;
+  $('bar-time').textContent  = t;
+  $('bar-phase').textContent = ph;
+}
+
+function updateRing() {
+  const pct = S.secs / S.totalSecs;
+  const off = CIRC * (1 - pct);
+  if ($('ring-fg')) $('ring-fg').style.strokeDashoffset = off;
+  $('bar-fill').style.width = (pct * 100) + '%';
+}
+
+function renderDots() {
+  const n = S.cfg.cycles;
+  let h = '';
+  for (let i = 0; i < n; i++) {
+    const cls = i < S.pomoDone ? 'done' : i === S.pomoDone ? 'cur' : '';
+    h += `<div class="pomo-dot ${cls}"></div>`;
+  }
+  if ($('pomo-dots')) $('pomo-dots').innerHTML = h;
+}
+
+function setPlayBtn(playing) {
+  [$('pc-pp'), $('bar-pp')].forEach(btn => {
+    if (btn) btn.textContent = playing ? '⏸' : '▶';
   });
-
-  function createPomodoroBtn() {
-    const btn = document.createElement("button");
-    btn.innerHTML = "⏱️";
-    btn.onclick = () => startPomodoro();
-    return btn;
-  }
-
-  function createEditBtn(cardEl, spanEl) {
-    const btn = document.createElement("button");
-    btn.innerHTML = "✏️";
-    btn.onclick = () => openTaskForm(cardEl, spanEl.textContent);
-    return btn;
-  }
-
-  card.appendChild(checkbox);
-  card.appendChild(span);
-
-  if (!checked) {
-    buttons.appendChild(createPomodoroBtn());
-    buttons.appendChild(createEditBtn(card, span));
-  }
-  buttons.appendChild(deleteBtn);
-  card.appendChild(buttons);
-
-  const parent = checked ? "completedTasks" : "activeTasks";
-  document.getElementById(parent).appendChild(card);
 }
 
-// DRAG DA JANELA POMODORO
-let offsetX = 0, offsetY = 0, isDragging = false;
-
-function startDrag(e) {
-  const widget = document.getElementById("pomodoroWidget");
-  const target = e.target;
-  if (target.closest("button") || target.id === "minimizeBtn") return;
-
-  const clientX = e.type.includes("touch") ? e.touches[0].clientX : e.clientX;
-  const clientY = e.type.includes("touch") ? e.touches[0].clientY : e.clientY;
-
-  offsetX = clientX - widget.offsetLeft;
-  offsetY = clientY - widget.offsetTop;
-  isDragging = true;
-
-  function dragMove(ev) {
-    if (!isDragging) return;
-    const moveX = ev.type.includes("touch") ? ev.touches[0].clientX : ev.clientX;
-    const moveY = ev.type.includes("touch") ? ev.touches[0].clientY : ev.clientY;
-    widget.style.left = `${moveX - offsetX}px`;
-    widget.style.top = `${moveY - offsetY}px`;
-  }
-
-  function stopDrag() {
-    isDragging = false;
-    document.removeEventListener("mousemove", dragMove);
-    document.removeEventListener("mouseup", stopDrag);
-    document.removeEventListener("touchmove", dragMove);
-    document.removeEventListener("touchend", stopDrag);
-  }
-
-  document.addEventListener("mousemove", dragMove);
-  document.addEventListener("mouseup", stopDrag);
-  document.addEventListener("touchmove", dragMove, { passive: false });
-  document.addEventListener("touchend", stopDrag);
+function updateBar() {
+  const s = S.subjects.find(x => x.id === S.activeId);
+  $('bar-subject').textContent = s ? s.name : '—';
+  updateTimerUI();
+  updateRing();
+  $('pomo-bar').classList.toggle('visible', !!S.activeId);
 }
 
-document.getElementById("pomodoroWidget").addEventListener("mousedown", startDrag);
-document.getElementById("pomodoroWidget").addEventListener("touchstart", startDrag);
+function renderPomoView() {
+  const s = S.subjects.find(x => x.id === S.activeId);
+  if (!s) {
+    $('pomo-no-subj').style.display  = 'block';
+    $('pomo-active').style.display   = 'none';
+  } else {
+    $('pomo-no-subj').style.display  = 'none';
+    $('pomo-active').style.display   = 'flex';
+    $('pomo-subj-name').textContent  = s.name;
+    updateTimerUI();
+    updateRing();
+    renderDots();
+  }
+}
 
-// ONLOAD
-window.onload = () => {
-  loadTasks();
-  updateMinutesToday();
-  updateTimerDisplay();
-  loadConfig();
-};
+/* Pomodoro controls */
+$('pc-pp').addEventListener('click', () => {
+  if (!S.activeId) return;
+  S.running ? pauseTimer() : startTimer();
+});
+$('pc-restart').addEventListener('click', () => {
+  if (!S.activeId) return;
+  pauseTimer();
+  S.phase    = 'focus';
+  S.pomoDone = 0;
+  loadPhase();
+  renderDash();
+  renderPomoView();
+});
+$('pc-stop').addEventListener('click', () => stopTimer());
+$('bar-pp').addEventListener('click', () => {
+  if (!S.activeId) return;
+  S.running ? pauseTimer() : startTimer();
+});
+$('bar-stop').addEventListener('click', () => stopTimer());
+
+/* End modal */
+$('end-cont').addEventListener('click', () => {
+  closeModal('end-modal');
+  loadPhase();
+  startTimer();
+  renderPomoView();
+  updateBar();
+  toast('☕', S.phase !== 'focus' ? 'Pausa iniciada!' : 'Vamos lá!');
+});
+$('end-stop').addEventListener('click', () => {
+  closeModal('end-modal');
+  stopTimer();
+});
+
+/* ═══════════════════════════════════
+   SETTINGS
+═══════════════════════════════════ */
+function openCfg() {
+  $('s-focus').value  = S.cfg.focus;
+  $('s-short').value  = S.cfg.short;
+  $('s-long').value   = S.cfg.long;
+  $('s-cycles').value = S.cfg.cycles;
+  openModal('cfg-modal');
+}
+
+function step(id, d) {
+  const el = $(id);
+  el.value = Math.max(
+    parseInt(el.min) || 1,
+    Math.min(parseInt(el.max) || 999, parseInt(el.value) + d)
+  );
+}
+
+$('cfg-cancel').addEventListener('click', () => closeModal('cfg-modal'));
+$('cfg-modal').addEventListener('click', e => {
+  if (e.target === $('cfg-modal')) closeModal('cfg-modal');
+});
+$('cfg-ok').addEventListener('click', () => {
+  S.cfg.focus  = parseInt($('s-focus').value)  || 25;
+  S.cfg.short  = parseInt($('s-short').value)  || 5;
+  S.cfg.long   = parseInt($('s-long').value)   || 15;
+  S.cfg.cycles = parseInt($('s-cycles').value) || 4;
+  save();
+  if (!S.running && S.activeId) loadPhase();
+  closeModal('cfg-modal');
+  toast('✓', 'Configurações salvas');
+});
+
+/* ═══════════════════════════════════
+   NOTES
+═══════════════════════════════════ */
+let _noteSaveTimer;
+
+function createNote(title = 'Nova nota', content = '') {
+  const note = {
+    id:        Date.now().toString(),
+    title:     title || 'Nova nota',
+    content,
+    updatedAt: Date.now(),
+  };
+  S.notes.unshift(note);
+  save();
+  return note;
+}
+
+function delNote() {
+  if (!S.activeNoteId) return;
+  S.notes = S.notes.filter(n => n.id !== S.activeNoteId);
+  S.subjects.forEach(s => { if (s.noteId === S.activeNoteId) s.noteId = null; });
+  S.activeNoteId = null;
+  save();
+  renderNotesList();
+  showNoteEditor(null);
+  toast('🗑', 'Nota removida');
+}
+
+function openNoteForSubject(subjId) {
+  const s = S.subjects.find(x => x.id === subjId);
+  if (!s) return;
+  if (!s.noteId) {
+    const n = createNote(s.name, s.notes || '');
+    s.noteId = n.id;
+    save();
+  }
+  nav('notes');
+  renderNotesList();
+  openNote(s.noteId);
+}
+
+function openNote(id) {
+  const n = S.notes.find(x => x.id === id);
+  if (!n) return;
+  S.activeNoteId = id;
+  showNoteEditor(n);
+  renderNotesList();
+}
+
+function showNoteEditor(n) {
+  if (!n) {
+    $('notes-empty').style.display    = 'flex';
+    $('notes-edit-area').style.display = 'none';
+    return;
+  }
+  $('notes-empty').style.display    = 'none';
+  $('notes-edit-area').style.display = 'flex';
+  $('note-title').value   = n.title;
+  $('note-content').value = n.content;
+}
+
+function renderNotesList() {
+  const list = $('notes-list');
+  if (!S.notes.length) {
+    list.innerHTML = `<div style="padding:20px;text-align:center;font-size:12px;color:var(--muted)">Nenhuma nota ainda</div>`;
+    return;
+  }
+  list.innerHTML = S.notes.map(n => `
+    <div class="note-item ${n.id === S.activeNoteId ? 'active' : ''}" data-nid="${n.id}">
+      <div class="note-item-title">${n.title || 'Sem título'}</div>
+      <div class="note-item-preview">${(n.content || '').substring(0, 50) || '…'}</div>
+      <div class="note-item-date">${relTime(n.updatedAt)}</div>
+    </div>`).join('');
+
+  list.querySelectorAll('.note-item').forEach(el => {
+    el.addEventListener('click', () => openNote(el.dataset.nid));
+  });
+}
+
+function relTime(ts) {
+  const d = Date.now() - ts;
+  if (d < 60000)    return 'Agora';
+  if (d < 3600000)  return Math.floor(d / 60000) + 'min atrás';
+  if (d < 86400000) return Math.floor(d / 3600000) + 'h atrás';
+  return new Date(ts).toLocaleDateString('pt-BR');
+}
+
+function noteInput() {
+  clearTimeout(_noteSaveTimer);
+  _noteSaveTimer = setTimeout(() => {
+    const n = S.notes.find(x => x.id === S.activeNoteId);
+    if (!n) return;
+    n.title     = $('note-title').value || 'Sem título';
+    n.content   = $('note-content').value;
+    n.updatedAt = Date.now();
+    save();
+    renderNotesList();
+  }, 600);
+}
+
+$('note-title').addEventListener('input', noteInput);
+$('note-content').addEventListener('input', noteInput);
+
+$('notes-new-btn').addEventListener('click', () => {
+  const n = createNote();
+  renderNotesList();
+  openNote(n.id);
+  setTimeout(() => $('note-title').focus(), 50);
+});
+
+function noteFmt(cmd) {
+  $('note-content').focus();
+  document.execCommand(cmd);
+}
+
+/* ═══════════════════════════════════
+   MODAL HELPERS
+═══════════════════════════════════ */
+function openModal(id)  { $(id).classList.add('open'); }
+function closeModal(id) { $(id).classList.remove('open'); }
+
+/* ═══════════════════════════════════
+   INIT
+═══════════════════════════════════ */
+function init() {
+  renderDash();
+  renderNotesList();
+  updateTimerUI();
+  updateRing();
+  renderDots();
+  updateBar();
+  if (S.activeId) renderPomoView();
+}
+
+init();
