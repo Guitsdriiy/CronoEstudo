@@ -45,17 +45,12 @@
         <div class="chip" data-v="alta">🔴 Alta</div>
       </div>
     </div>
-    <div class="opt-toggle" id="opt-tgl">▸ Opções avançadas</div>
+    <div class="opt-toggle" id="opt-tgl">▸ Definir meta de tempo <span style="font-size:10px;color:var(--accent2);font-weight:600">aparece no timer</span></div>
     <div class="opt-fields" id="opt-f">
-      <div class="frow">
-        <div class="fg">
-          <label class="fl">Tempo estimado (min)</label>
-          <input class="fi" id="f-time" type="number" placeholder="60" min="1">
-        </div>
-        <div class="fg">
-          <label class="fl">Meta de sessões</label>
-          <input class="fi" id="f-sessions" type="number" placeholder="4" min="1">
-        </div>
+      <div class="fg">
+        <label class="fl">Tempo total estimado (min)</label>
+        <input class="fi" id="f-time" type="number" placeholder="ex: 60" min="1">
+        <div style="font-size:11px;color:var(--muted);margin-top:5px">Uma barra de progresso aparecerá no timer mostrando quanto você já estudou desta matéria.</div>
       </div>
       <div class="fg">
         <label class="fl">Anotação inicial</label>
@@ -215,16 +210,17 @@
             <p>Nenhuma matéria em foco.<br>Selecione uma na aba <strong>Início</strong> para começar.</p>
             <button class="sec-action" style="margin:0 auto" onclick="nav('dash')">Ir para Início</button>
           </div>
-          <div id="pomo-active" style="display:none;flex-direction:column;align-items:center;gap:20px">
+          <div id="pomo-active" style="display:none;flex-direction:column;align-items:center;gap:14px;width:100%">
+            <button class="pomo-back-btn" onclick="nav('dash')">← Voltar ao Início</button>
             <div class="pomo-subject-label">
               <span class="pl">Estudando agora</span>
               <span class="pn" id="pomo-subj-name">—</span>
             </div>
             <div class="ring-wrap" id="ring-wrap">
-              <svg width="200" height="200" viewBox="0 0 200 200">
-                <circle class="ring-bg" cx="100" cy="100" r="88"/>
-                <circle class="ring-fg" id="ring-fg" cx="100" cy="100" r="88"
-                  stroke-dasharray="553" stroke-dashoffset="0"/>
+              <svg width="160" height="160" viewBox="0 0 160 160">
+                <circle class="ring-bg" cx="80" cy="80" r="68"/>
+                <circle class="ring-fg" id="ring-fg" cx="80" cy="80" r="68"
+                  stroke-dasharray="427" stroke-dashoffset="0"/>
               </svg>
               <div class="ring-center">
                 <div class="ring-time" id="ring-time">25:00</div>
@@ -235,9 +231,29 @@
             <div class="pomo-controls">
               <button class="pc-btn sec" id="pc-restart" title="Reiniciar">↺</button>
               <button class="pc-btn pri" id="pc-pp">▶</button>
-              <button class="pc-btn danger" id="pc-stop" title="Encerrar">■</button>
+              <button class="pc-btn danger" id="pc-stop" title="Encerrar sessão">■</button>
             </div>
-            <div class="pomo-hint">Minimize a barra acima para continuar navegando sem perder o timer</div>
+            <!-- Card de progresso — aqui as opções avançadas ficam visíveis e úteis -->
+            <div class="pomo-session-info" id="pomo-session-info">
+              <div class="psi-row">
+                <span class="psi-label">Sessões hoje</span>
+                <span class="psi-val" id="psi-pomos">0 pomodoros</span>
+              </div>
+              <div class="psi-row">
+                <span class="psi-label">Tempo estudado</span>
+                <span class="psi-val" id="psi-time">0 min</span>
+              </div>
+              <div id="psi-goal-row" style="display:none">
+                <div class="psi-row">
+                  <span class="psi-label">Meta da matéria</span>
+                  <span class="psi-val" id="psi-goal-val">0 / 0 min</span>
+                </div>
+                <div class="psi-track" style="margin-top:4px">
+                  <div class="psi-fill" id="psi-goal-fill" style="width:0%"></div>
+                </div>
+              </div>
+            </div>
+            <div class="pomo-hint">A barra no topo mantém o timer visível ao navegar</div>
           </div>
         </div>
       </div>
