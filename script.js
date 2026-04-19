@@ -27,7 +27,7 @@ const S = {
   currentView: 'dash',
 };
 
-const CIRC = 2 * Math.PI * 88; // ≈ 553
+const CIRC = 2 * Math.PI * 68; // ≈ 427
 
 /* ═══════════════════════════════════
    HELPERS
@@ -181,7 +181,6 @@ let _type = 'leitura', _diff = 'baixa';
 function openAdd() {
   $('f-name').value     = '';
   $('f-time').value     = '';
-  $('f-sessions').value = '';
   $('f-notes').value    = '';
   _type = 'leitura'; _diff = 'baixa';
   setChips('type-chips', _type);
@@ -235,7 +234,6 @@ $('add-ok').addEventListener('click', () => {
     type:       _type,
     diff:       _diff,
     estTime:    parseInt($('f-time').value)     || 0,
-    goalSess:   parseInt($('f-sessions').value) || 0,
     notes:      $('f-notes').value,
     studiedMin: 0,
     sessions:   0,
@@ -351,7 +349,8 @@ function doTick() {
     S.sessMins++;
     save();
     updateStats();
-    if (S.currentView === 'dash') renderDash();
+    if (S.currentView === 'dash')  renderDash();
+    if (S.currentView === 'pomo')  renderPomoView();
   }
 
   updateTimerUI();
@@ -447,6 +446,19 @@ function renderPomoView() {
     $('pomo-no-subj').style.display  = 'none';
     $('pomo-active').style.display   = 'flex';
     $('pomo-subj-name').textContent  = s.name;
+    // atualiza card de progresso
+    $('psi-pomos').textContent = S.today.pomo + ' pomodoro' + (S.today.pomo !== 1 ? 's' : '');
+    $('psi-time').textContent  = (s.studiedMin || 0) + ' min nesta matéria';
+    // mostra barra de meta só se o usuário definiu tempo estimado
+    const goalRow = $('psi-goal-row');
+    if (s.estTime) {
+      goalRow.style.display = 'block';
+      const pct = Math.min(100, Math.round(((s.studiedMin || 0) / s.estTime) * 100));
+      $('psi-goal-val').textContent  = `${s.studiedMin || 0} / ${s.estTime} min`;
+      $('psi-goal-fill').style.width = pct + '%';
+    } else {
+      goalRow.style.display = 'none';
+    }
     updateTimerUI();
     updateRing();
     renderDots();
