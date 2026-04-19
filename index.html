@@ -1,117 +1,297 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>CronoEstudo</title>
-  <link rel="stylesheet" href="style.css" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
+<title>CronoEstudo</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Figtree:ital,wght@0,300;0,400;0,500;0,600;1,300&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header>
-    <h1>CronoEstudo</h1>
-    <p class="subtitle">Organize seus estudos com foco e eficiência!</p>
-  </header>
 
-  <div id="studySummary">
-    📘 Você estudou <strong id="minutesToday">0</strong> minutos hoje
-  </div>
+<!-- SVG DEFS -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <linearGradient id="rg" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#6e5ff0"/>
+      <stop offset="100%" stop-color="#9b8fff"/>
+    </linearGradient>
+  </defs>
+</svg>
 
-  <!-- Botão que abre o formulário -->
-  <div id="add-task">
-    <button onclick="openTaskForm()">➕ Nova Matéria</button>
-  </div>
-
-  <!-- Abas -->
-  <div id="taskList" class="task-section">
-    <h3>📚 Tarefas Ativas</h3>
-    <div id="activeTasks"></div>
-  </div>
-
-  <div id="completedList" class="task-section">
-    <h3>✅ Matérias Concluídas</h3>
-    <div id="completedTasks"></div>
-  </div>
-
-  <!-- Botão Configurações Pomodoro -->
-  <button id="configBtn" onclick="openConfigModal()" title="Ajustar tempos do Pomodoro">
-    ⚙️ Configurar Pomodoro
-  </button>
-
-  <!-- Pomodoro Widget -->
-  <div id="pomodoroWidget" class="widget" style="display: none;">
-    <div class="widget-header">
-      ⏱ Pomodoro
-      <span id="minimizeBtn" onclick="toggleWidget(event)">➖</span>
+<!-- ═══ MODAL: ADICIONAR MATÉRIA ═══ -->
+<div class="overlay" id="add-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Nova Matéria</div>
+    <div class="fg">
+      <label class="fl">Nome *</label>
+      <input class="fi" id="f-name" type="text" placeholder="ex: Inglês, Direito Civil…">
     </div>
-    <div class="widget-body" id="pomodoroBody">
-      <p id="pomodoroStatus" class="pomodoro-status study">Estudando</p>
-      <p id="pomodoroTimer">25:00</p>
-      <div class="widget-buttons">
-        <button onclick="pausePomodoro()">⏸️</button>
-        <button onclick="resumePomodoro()">▶️</button>
-        <button onclick="closePomodoro()">Fechar</button>
+    <div class="fg">
+      <label class="fl">Tipo</label>
+      <div class="chips" id="type-chips">
+        <div class="chip on" data-v="leitura">📖 Leitura</div>
+        <div class="chip" data-v="revisao">🔁 Revisão</div>
+        <div class="chip" data-v="exercicio">✏️ Exercício</div>
+        <div class="chip" data-v="projeto">🚀 Projeto</div>
       </div>
     </div>
-  </div>
-
-  <!-- Modal Configuração Pomodoro -->
-  <div id="configModal" class="modal" style="display: none;">
-    <div class="modal-content">
-      <h2>Configurações do Pomodoro</h2>
-      <label>Duração Estudo (min): <input type="number" id="pomodoroDuration" min="1" /></label>
-      <label>Duração Pausa Curta (min): <input type="number" id="shortBreakDuration" min="1" /></label>
-      <label>Duração Pausa Longa (min): <input type="number" id="longBreakDuration" min="1" /></label>
-      <label>Ciclos até Pausa Longa: <input type="number" id="cyclesUntilLongBreak" min="1" /></label>
-      <div class="modal-buttons">
-        <button onclick="saveConfig()">Salvar</button>
-        <button onclick="closeConfigModal()">Cancelar</button>
+    <div class="fg">
+      <label class="fl">Dificuldade</label>
+      <div class="chips" id="diff-chips">
+        <div class="chip on" data-v="baixa">🟢 Baixa</div>
+        <div class="chip" data-v="media">🟡 Média</div>
+        <div class="chip" data-v="alta">🔴 Alta</div>
       </div>
+    </div>
+    <div class="opt-toggle" id="opt-tgl">▸ Opções avançadas</div>
+    <div class="opt-fields" id="opt-f">
+      <div class="frow">
+        <div class="fg">
+          <label class="fl">Tempo estimado (min)</label>
+          <input class="fi" id="f-time" type="number" placeholder="60" min="1">
+        </div>
+        <div class="fg">
+          <label class="fl">Meta de sessões</label>
+          <input class="fi" id="f-sessions" type="number" placeholder="4" min="1">
+        </div>
+      </div>
+      <div class="fg">
+        <label class="fl">Anotação inicial</label>
+        <textarea class="fta" id="f-notes" placeholder="Capítulos, links, lembretes…"></textarea>
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button class="mbtn-cancel" id="add-cancel">Cancelar</button>
+      <button class="mbtn-ok" id="add-ok">Adicionar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL: CONFIGURAÇÕES ═══ -->
+<div class="overlay" id="cfg-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">⚙️ Configurações do Pomodoro</div>
+    <div class="srow">
+      <div class="srow-info"><div class="srow-name">Foco</div><div class="srow-desc">Duração da sessão</div></div>
+      <div class="stepper">
+        <button class="step-b" onclick="step('s-focus',-5)">−</button>
+        <input type="number" id="s-focus" value="25" min="5" max="90">
+        <button class="step-b" onclick="step('s-focus',5)">+</button>
+      </div>
+    </div>
+    <div class="srow">
+      <div class="srow-info"><div class="srow-name">Pausa curta</div><div class="srow-desc">Entre pomodoros</div></div>
+      <div class="stepper">
+        <button class="step-b" onclick="step('s-short',-1)">−</button>
+        <input type="number" id="s-short" value="5" min="1" max="30">
+        <button class="step-b" onclick="step('s-short',1)">+</button>
+      </div>
+    </div>
+    <div class="srow">
+      <div class="srow-info"><div class="srow-name">Pausa longa</div><div class="srow-desc">Após ciclos completos</div></div>
+      <div class="stepper">
+        <button class="step-b" onclick="step('s-long',-5)">−</button>
+        <input type="number" id="s-long" value="15" min="5" max="60">
+        <button class="step-b" onclick="step('s-long',5)">+</button>
+      </div>
+    </div>
+    <div class="srow">
+      <div class="srow-info"><div class="srow-name">Ciclos</div><div class="srow-desc">Até pausa longa</div></div>
+      <div class="stepper">
+        <button class="step-b" onclick="step('s-cycles',-1)">−</button>
+        <input type="number" id="s-cycles" value="4" min="2" max="8">
+        <button class="step-b" onclick="step('s-cycles',1)">+</button>
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button class="mbtn-cancel" id="cfg-cancel">Fechar</button>
+      <button class="mbtn-ok" id="cfg-ok">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL: FIM DE SESSÃO ═══ -->
+<div class="overlay" id="end-modal" style="align-items:center">
+  <div class="modal" style="border-radius:18px;align-self:center;margin:16px">
+    <div class="end-emoji" id="end-emoji">🎯</div>
+    <div class="end-title">Ciclo concluído!</div>
+    <div class="end-sub" id="end-sub">Ótimo foco! Hora de descansar.</div>
+    <div class="end-stats">
+      <div class="end-stat"><div class="end-stat-v" id="end-min">25</div><div class="end-stat-l">minutos</div></div>
+      <div class="end-stat"><div class="end-stat-v" id="end-pomo">1</div><div class="end-stat-l">pomodoros</div></div>
+      <div class="end-stat"><div class="end-stat-v" id="end-streak">1</div><div class="end-stat-l">streak 🔥</div></div>
+    </div>
+    <div class="end-btns">
+      <button class="end-continue" id="end-cont">▶ Iniciar pausa</button>
+      <button class="end-stop" id="end-stop">Encerrar sessão</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"><span id="t-ico">✓</span><span id="t-msg">Ok</span></div>
+
+<!-- ═══ APP SHELL ═══ -->
+<div id="app">
+
+  <!-- Top Nav -->
+  <nav id="topnav">
+    <div class="logo">Crono<em>Estudo</em></div>
+    <div class="nav-actions">
+      <button class="nav-btn active" id="nb-dash" onclick="nav('dash')">
+        <svg viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6" height="6" rx="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5"/><rect x="1" y="9" width="6" height="6" rx="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5"/></svg>
+        Início
+      </button>
+      <button class="nav-btn" id="nb-pomo" onclick="nav('pomo')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5l2 1.5"/></svg>
+        Pomodoro
+        <div class="nav-dot" id="pomo-dot"></div>
+      </button>
+      <button class="nav-btn" id="nb-notes" onclick="nav('notes')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 6h6M5 9h4"/></svg>
+        Notas
+      </button>
+      <button class="nav-btn" id="nb-api" onclick="nav('api')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 8h3m6 0h3M8 2v3m0 6v3"/><circle cx="8" cy="8" r="2"/></svg>
+        Busca IA
+        <span class="soon-badge">SOON</span>
+      </button>
+      <button class="nav-btn" id="nb-cfg" onclick="openCfg()">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 10a2 2 0 100-4 2 2 0 000 4z"/><path d="M13.3 6.7l-.9-.5a5 5 0 000-1.4l.9-.5a.8.8 0 00.3-1.1l-.9-1.5a.8.8 0 00-1.1-.3l-.9.5a5 5 0 00-1.2-.7V1a.8.8 0 00-.8-.8H8.3a.8.8 0 00-.8.8v1.2a5 5 0 00-1.2.7l-.9-.5a.8.8 0 00-1.1.3L3.4 4.2a.8.8 0 00.3 1.1l.9.5a5 5 0 000 1.4l-.9.5a.8.8 0 00-.3 1.1l.9 1.5a.8.8 0 001.1.3l.9-.5a5 5 0 001.2.7V12a.8.8 0 00.8.8h1.8a.8.8 0 00.8-.8v-.7a5 5 0 001.2-.7l.9.5a.8.8 0 001.1-.3l.9-1.5a.8.8 0 00-.3-1.1z"/></svg>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Pomodoro Mini Bar -->
+  <div id="pomo-bar">
+    <div class="pomo-bar-subject" id="bar-subject">—</div>
+    <div class="pomo-bar-time" id="bar-time">25:00</div>
+    <div class="pomo-bar-phase" id="bar-phase">foco</div>
+    <div class="pomo-bar-track"><div class="pomo-bar-fill" id="bar-fill" style="width:100%"></div></div>
+    <div class="pomo-bar-btns">
+      <button class="pbar-btn" id="bar-pp" title="Play/Pause">▶</button>
+      <button class="pbar-btn expand" onclick="nav('pomo')" title="Expandir">⤢</button>
+      <button class="pbar-btn" id="bar-stop" title="Parar" style="color:var(--red)">■</button>
     </div>
   </div>
 
-  <!-- Modal Formulário Nova Tarefa -->
-  <div id="taskFormModal" class="modal" style="display: none;">
-    <div class="modal-content">
-      <h2>Nova Matéria</h2>
-      <label>
-        Nome da Matéria:
-        <input type="text" id="formName" required />
-      </label>
-      <label>
-        Tipo:
-        <select id="formType">
-          <option value="Leitura">Leitura</option>
-          <option value="Revisão">Revisão</option>
-          <option value="Exercício">Exercício</option>
-          <option value="Projeto">Projeto</option>
-        </select>
-      </label>
-      <label>
-        Dificuldade:
-        <select id="formDifficulty">
-          <option value="Baixa">Baixa</option>
-          <option value="Média">Média</option>
-          <option value="Alta">Alta</option>
-        </select>
-      </label>
-      <label>
-        Tempo Estimado (min):
-        <input type="number" id="formTime" min="1" />
-      </label>
-      <label>
-        Notas:
-        <textarea id="formNotes" rows="3" placeholder="Algo que queira lembrar..."></textarea>
-      </label>
-      <div class="modal-buttons">
-        <button onclick="submitTaskForm()">Adicionar</button>
-        <button onclick="closeTaskForm()">Cancelar</button>
+  <!-- Main views -->
+  <div id="main">
+
+    <!-- VIEW: DASHBOARD -->
+    <div class="view active" id="view-dash">
+      <div class="view-scroll" id="dash-scroll">
+        <div class="today-row au au-1">
+          <div class="stat-card"><div class="stat-card-val hi" id="d-min">0</div><div class="stat-card-label">min hoje</div></div>
+          <div class="stat-card"><div class="stat-card-val" id="d-pomo">0</div><div class="stat-card-label">pomodoros</div></div>
+          <div class="stat-card"><div class="stat-card-val" id="d-done">0</div><div class="stat-card-label">concluídas</div></div>
+        </div>
+        <div class="prog-card au au-2">
+          <div class="prog-head"><span>Meta diária (120 min)</span><strong id="d-pct">0%</strong></div>
+          <div class="prog-track"><div class="prog-fill" id="d-prog" style="width:0%"></div></div>
+        </div>
+        <div class="sec-head au au-3">
+          <div class="sec-title">Matérias</div>
+          <button class="sec-action" id="btn-add">＋ Nova</button>
+        </div>
+        <div class="subject-list au au-4" id="subj-list"></div>
+        <div class="done-section" id="done-section" style="display:none">
+          <div class="sec-head" style="margin-top:20px">
+            <div class="sec-title">Concluídas ✅</div>
+          </div>
+          <div class="subject-list" id="done-list"></div>
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- Toast -->
-  <div id="toast" class="toast" style="display:none;"></div>
+    <!-- VIEW: POMODORO -->
+    <div class="view" id="view-pomo">
+      <div class="view-scroll">
+        <div class="pomo-wrap">
+          <div id="pomo-no-subj" class="pomo-select-prompt">
+            <p>Nenhuma matéria em foco.<br>Selecione uma na aba <strong>Início</strong> para começar.</p>
+            <button class="sec-action" style="margin:0 auto" onclick="nav('dash')">Ir para Início</button>
+          </div>
+          <div id="pomo-active" style="display:none;flex-direction:column;align-items:center;gap:20px">
+            <div class="pomo-subject-label">
+              <span class="pl">Estudando agora</span>
+              <span class="pn" id="pomo-subj-name">—</span>
+            </div>
+            <div class="ring-wrap" id="ring-wrap">
+              <svg width="200" height="200" viewBox="0 0 200 200">
+                <circle class="ring-bg" cx="100" cy="100" r="88"/>
+                <circle class="ring-fg" id="ring-fg" cx="100" cy="100" r="88"
+                  stroke-dasharray="553" stroke-dashoffset="0"/>
+              </svg>
+              <div class="ring-center">
+                <div class="ring-time" id="ring-time">25:00</div>
+                <div class="ring-phase" id="ring-phase">foco</div>
+              </div>
+            </div>
+            <div class="pomo-dots" id="pomo-dots"></div>
+            <div class="pomo-controls">
+              <button class="pc-btn sec" id="pc-restart" title="Reiniciar">↺</button>
+              <button class="pc-btn pri" id="pc-pp">▶</button>
+              <button class="pc-btn danger" id="pc-stop" title="Encerrar">■</button>
+            </div>
+            <div class="pomo-hint">Minimize a barra acima para continuar navegando sem perder o timer</div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-  <script src="script.js"></script>
+    <!-- VIEW: NOTAS -->
+    <div class="view" id="view-notes">
+      <div class="notes-sidebar">
+        <div class="notes-sidebar-head">
+          <span>Notas</span>
+          <button class="notes-new-btn" id="notes-new-btn" title="Nova nota">＋</button>
+        </div>
+        <div class="notes-list" id="notes-list"></div>
+      </div>
+      <div class="notes-editor" id="notes-editor">
+        <div class="notes-empty" id="notes-empty">
+          <div style="font-size:36px;opacity:0.25">📝</div>
+          <p>Selecione uma nota ou crie uma nova</p>
+        </div>
+        <div id="notes-edit-area" style="display:none;flex-direction:column;overflow:hidden;flex:1">
+          <div class="notes-editor-head">
+            <input class="notes-title-input" id="note-title" placeholder="Título da nota…" type="text">
+            <div class="notes-toolbar">
+              <button class="ntb" onclick="noteFmt('bold')" title="Negrito"><b>B</b></button>
+              <button class="ntb" onclick="noteFmt('italic')" title="Itálico"><i>I</i></button>
+              <button class="ntb" onclick="delNote()" title="Deletar nota" style="color:var(--red)">🗑</button>
+            </div>
+          </div>
+          <div class="notes-body">
+            <textarea class="notes-content-area" id="note-content" placeholder="Comece a escrever…"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW: BUSCA IA (futuro) -->
+    <div class="view" id="view-api">
+      <div class="future-view">
+        <div class="future-badge">Em breve</div>
+        <h2>Busca Inteligente por IA</h2>
+        <p>
+          Você colocará o título da matéria + tipo de estudo e o sistema vai buscar
+          automaticamente materiais, exercícios e vídeos usando APIs de conteúdo.
+          <br><br>
+          <strong style="color:var(--text2)">Exemplo:</strong><br>
+          <em style="color:var(--muted)">Inglês + Exercício + Presente Perfeito</em><br>
+          <span style="color:var(--accent2)">→ busca: "inglês atividade sobre presente perfeito"</span>
+        </p>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<script src="script.js"></script>
 </body>
 </html>
