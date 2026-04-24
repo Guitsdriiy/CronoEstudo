@@ -1,4 +1,3 @@
-<style>
 :root {
   --bg:#06060e; --s1:#0d0d1f; --s2:#131328; --s3:#191935; --s4:#1f1f40;
   --bdr:rgba(255,255,255,0.06); --bdr2:rgba(255,255,255,0.12);
@@ -313,4 +312,3 @@ textarea{resize:none}
 /* TOAST */
 .toast{position:absolute;bottom:calc(var(--nav) + 14px);left:50%;transform:translateX(-50%) translateY(14px);background:var(--s3);border:1px solid var(--bdr2);border-radius:var(--r2);padding:11px 18px;font-size:13px;font-weight:600;white-space:nowrap;z-index:700;opacity:0;transition:all .28s;pointer-events:none;max-width:calc(100% - 40px);text-align:center}
 .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
-</style>
