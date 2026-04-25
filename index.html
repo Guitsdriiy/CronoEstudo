@@ -904,34 +904,40 @@ function callAI(){
     S.aiBusy=false;
     var sb=el('csend');if(sb)sb.disabled=false;
   }
-  fetch('https://api.anthropic.com/v1/messages',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({
-      model:'claude-sonnet-4-20250514',
-      max_tokens:1200,
-      system:S.sys,
-      messages:S.history
-    })
-  }).then(function(res){
-    return res.json();
-  }).then(function(data){
+  function handleData(data){
     var raw='';
     if(data&&data.content&&Array.isArray(data.content)){
       for(var i=0;i<data.content.length;i++){
         if(data.content[i].type==='text'){raw=data.content[i].text;break}
       }
     }
+    if(data&&data.error){raw=''}
     if(!raw)raw='Desculpe, não consegui responder. Tente novamente.';
     if(typ&&typ.parentNode)typ.remove();
     S.history.push({role:'assistant',content:raw});
     parseAndRender(raw);
     done();
-  }).catch(function(err){
+  }
+  function handleErr(){
     if(typ&&typ.parentNode)typ.remove();
-    aiMsg('⚠️ Erro de conexão. Verifique sua internet.',false);
+    aiMsg('⚠️ Erro ao conectar com o Professor IA. Tente novamente.',false);
     done();
+  }
+  var payload=JSON.stringify({
+    model:'claude-sonnet-4-20250514',
+    max_tokens:1200,
+    system:S.sys,
+    messages:S.history
   });
+  // Use Vercel API proxy route — avoids CORS and hides API key
+  fetch('/api/chat',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:payload
+  }).then(function(res){
+    if(!res.ok)throw new Error('status '+res.status);
+    return res.json();
+  }).then(handleData).catch(handleErr);
 }
 function parseAndRender(raw){
   var quizRe=/\[QUIZ\]([\s\S]*?)\[\/QUIZ\]/g;
