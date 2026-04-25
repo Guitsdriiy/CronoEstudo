@@ -26,64 +26,73 @@ module.exports = async function handler(req, res) {
     }
     if (cleanMessages.length === 0) return res.status(400).json({ error: 'No messages' });
 
-    // Try multiple free models in order until one works
     var models = [
       'mistralai/mistral-7b-instruct:free',
       'google/gemma-3-12b-it:free',
+      'google/gemma-3-4b-it:free',
+      'google/gemma-3-1b-it:free',
       'qwen/qwen3-8b:free',
-      'meta-llama/llama-3.2-3b-instruct:free'
+      'qwen/qwen3-4b:free',
+      'meta-llama/llama-3.2-3b-instruct:free',
+      'meta-llama/llama-3.2-1b-instruct:free',
+      'deepseek/deepseek-r1-distill-qwen-14b:free',
+      'microsoft/phi-3-mini-128k-instruct:free'
     ];
 
-    var lastError = null;
+    var results = [];
     for (var mi = 0; mi < models.length; mi++) {
-      var response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + apiKey,
-          'HTTP-Referer': 'https://crono-estudo.vercel.app',
-          'X-Title': 'CronoEstudo'
-        },
-        body: JSON.stringify({
-          model: models[mi],
-          messages: cleanMessages,
-          max_tokens: 1024
-        })
-      });
+      try {
+        var response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + apiKey,
+            'HTTP-Referer': 'https://crono-estudo.vercel.app',
+            'X-Title': 'CronoEstudo'
+          },
+          body: JSON.stringify({
+            model: models[mi],
+            messages: cleanMessages,
+            max_tokens: 1024
+          })
+        });
 
-      var data = await response.json();
-      console.log('Model:', models[mi], 'Status:', response.status);
+        var data = await response.json();
+        console.log('Model:', models[mi], '| HTTP:', response.status, '| error:', data.error ? JSON.stringify(data.error).substring(0,100) : 'none');
+        results.push(models[mi] + ':' + response.status);
 
-      if (response.status === 429 || (data.error && data.error.code === 429)) {
-        lastError = data.error;
-        continue; // try next model
-      }
+        if (response.status === 429 || (data.error && (data.error.code === 429 || data.error.code === 'rate_limit'))) {
+          continue;
+        }
 
-      if (data.error) {
-        console.log('Error:', JSON.stringify(data.error));
-        lastError = data.error;
+        if (data.error) {
+          continue;
+        }
+
+        var text = '';
+        if (data.choices && data.choices[0] && data.choices[0].message) {
+          text = data.choices[0].message.content || '';
+        }
+
+        if (text && text.trim()) {
+          console.log('SUCCESS with model:', models[mi]);
+          return res.status(200).json({
+            content: [{ type: 'text', text: text }]
+          });
+        }
+      } catch(e) {
+        console.log('Model', models[mi], 'threw:', e.message);
         continue;
       }
-
-      var text = '';
-      if (data.choices && data.choices[0] && data.choices[0].message) {
-        text = data.choices[0].message.content || '';
-      }
-
-      if (!text) { lastError = 'empty response'; continue; }
-
-      return res.status(200).json({
-        content: [{ type: 'text', text: text }]
-      });
     }
 
-    // All models failed
+    console.log('All models failed. Results:', results.join(', '));
     return res.status(200).json({
-      content: [{ type: 'text', text: 'Serviço temporariamente indisponível. Tente novamente em alguns segundos.' }]
+      content: [{ type: 'text', text: 'Todos os modelos gratuitos estão sobrecarregados no momento. Tente novamente em 1 minuto. (Resultados: ' + results.join(', ') + ')' }]
     });
 
   } catch (err) {
-    console.error('Error:', err.message);
+    console.error('Fatal error:', err.message);
     return res.status(500).json({ error: err.message });
   }
 };
